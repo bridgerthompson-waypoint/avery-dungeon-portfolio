@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Dungeon of Avery Lindqvist</title>
+<meta name="description" content="Avery Lindqvist — future 4th-grade teacher. Explore the portfolio as a dungeon crawl.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --stone: #16130f;
+    --stone-2: #221d17;
+    --stone-3: #2e271f;
+    --parch: #e9dcc0;
+    --parch-dim: #b9a989;
+    --ink: #2a1f14;
+    --gold: #e0a83a;
+    --ember: #d4572a;
+    --moss: #7fa36b;
+    --fog: #0b0a08;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 30%, #2a2219 0%, var(--stone) 55%, var(--fog) 100%);
+    color: var(--parch);
+    font-family: "IM Fell English", Georgia, serif;
+    font-size: 18px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  h1, h2, h3, .title { font-family: "Cinzel", Georgia, serif; letter-spacing: .04em; }
+  button {
+    font: inherit; cursor: pointer; color: var(--parch);
+    background: var(--stone-3); border: 1px solid #5a4a36; border-radius: 4px;
+    padding: .45em .9em; transition: background .15s, border-color .15s, transform .1s;
+  }
+  button:hover:not(:disabled) { background: #3d3327; border-color: var(--gold); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  a { color: var(--gold); }
+
+  /* torch flicker overlay */
+  .torchlight {
+    pointer-events: none; position: fixed; inset: 0; z-index: 50;
+    background: radial-gradient(circle at 50% 45%, transparent 35%, rgba(0,0,0,.55) 100%);
+    animation: flicker 3.2s infinite;
+  }
+  @keyframes flicker {
+    0%,100% { opacity: 1; } 20% { opacity: .9; } 22% { opacity: 1; } 50% { opacity: .93; } 70% { opacity: .98; } 72% { opacity: .88; }
+  }
+  @media (prefers-reduced-motion: reduce) { .torchlight { animation: none; } * { transition: none !important; animation: none !important; } }
+
+  /* ---------- Title screen ---------- */
+  #intro {
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 2rem;
+  }
+  #intro .sigil { font-size: 3.5rem; filter: drop-shadow(0 0 18px rgba(224,168,58,.6)); }
+  #intro h1 { font-size: clamp(2rem, 6vw, 3.8rem); margin: .3em 0 .1em; color: var(--gold); text-shadow: 0 0 24px rgba(224,168,58,.35); }
+  #intro .sub { font-style: italic; color: var(--parch-dim); max-width: 34rem; }
+  #intro .start { margin-top: 2rem; font-family: Cinzel, serif; font-size: 1.15rem; padding: .8em 1.8em; border-color: var(--gold); }
+  #intro .skip { margin-top: 1rem; font-size: .9rem; color: var(--parch-dim); background: none; border: none; text-decoration: underline; }
+
+  /* ---------- Game layout ---------- */
+  #game { display: none; max-width: 1180px; margin: 0 auto; padding: 1rem; }
+  #game.on { display: block; }
+  header.hud {
+    display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #4a3d2d; padding-bottom: .75rem; margin-bottom: 1rem;
+  }
+  .hud .who { font-family: Cinzel, serif; color: var(--gold); font-size: 1.2rem; }
+  .hud .who small { display: block; color: var(--parch-dim); font-family: "IM Fell English", serif; font-size: .85rem; font-style: italic; }
+  .xp { min-width: 220px; flex: 1; max-width: 360px; }
+  .xp .label { font-size: .85rem; color: var(--parch-dim); display: flex; justify-content: space-between; }
+  .xp .bar { height: 10px; background: #0e0c09; border: 1px solid #4a3d2d; border-radius: 6px; overflow: hidden; }
+  .xp .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--ember), var(--gold)); transition: width .6s ease; }
+  .hud .tools { display: flex; gap: .5rem; }
+
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 1.25rem; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } .side { order: 2; } }
+
+  /* map */
+  .panel { background: var(--stone-2); border: 1px solid #4a3d2d; border-radius: 6px; padding: 1rem; }
+  .panel h3 { margin: 0 0 .6rem; font-size: .95rem; color: var(--parch-dim); text-transform: uppercase; letter-spacing: .12em; }
+  .map { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .cell {
+    aspect-ratio: 1; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: .7rem; text-align: center; padding: 4px; line-height: 1.15; position: relative;
+    background: #0f0d0a; border: 1px dashed #3a3026; color: #5a4c3b;
+  }
+  .cell .ico { font-size: 1.5rem; line-height: 1; margin-bottom: 3px; }
+  .cell.rubble { background: repeating-linear-gradient(45deg, #15120e 0 6px, #1b1712 6px 12px); border-style: solid; border-color: #2a231b; }
+  .cell.seen { background: var(--stone-3); border: 1px solid #5a4a36; color: var(--parch-dim); }
+  .cell.adj { cursor: pointer; border-color: #8a6f45; }
+  .cell.adj:hover { border-color: var(--gold); }
+  .cell.here { border: 2px solid var(--gold); box-shadow: 0 0 14px rgba(224,168,58,.45); color: var(--parch); }
+  .cell.here::after { content: "◆"; position: absolute; top: 3px; right: 5px; color: var(--gold); font-size: .7rem; }
+  .cell.fogged .ico { filter: grayscale(1) brightness(.4); }
+  .legend { font-size: .8rem; color: var(--parch-dim); margin-top: .6rem; }
+  kbd { font-family: inherit; border: 1px solid #5a4a36; border-bottom-width: 2px; border-radius: 3px; padding: 0 .35em; font-size: .8em; }
+
+  .inventory { margin-top: 1rem; }
+  .inv { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .slot { aspect-ratio: 1; background: #0f0d0a; border: 1px solid #3a3026; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+  .slot.filled { border-color: var(--gold); background: #2a2217; animation: pop .4s ease; }
+  @keyframes pop { 0% { transform: scale(.6); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+  /* room */
+  .room {
+    background: linear-gradient(#efe3c8, #e3d3b0); color: var(--ink);
+    border-radius: 6px; padding: 1.5rem 1.75rem 1.25rem; position: relative;
+    box-shadow: 0 0 0 1px #8a6f45, 0 0 0 6px var(--stone-2), 0 0 0 7px #4a3d2d, 0 20px 50px rgba(0,0,0,.6);
+    min-height: 420px;
+  }
+  .room.enter { animation: fadeIn .45s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .room .kicker { font-family: Cinzel, serif; font-size: .75rem; letter-spacing: .2em; color: #8a5a2a; text-transform: uppercase; }
+  .room h2 { margin: .15em 0 .4em; font-size: 1.7rem; color: #3b2a17; }
+  .room .flavor { font-style: italic; color: #5a4630; border-left: 3px solid #b48a4a; padding-left: .8em; margin: 0 0 1rem; }
+  .room h4 { font-family: Cinzel, serif; margin: 1rem 0 .3rem; font-size: 1rem; color: #3b2a17; }
+  .room .meta { font-size: .9rem; color: #6a5438; font-style: italic; }
+  .room ul { margin: .3rem 0 .6rem; padding-left: 1.2rem; }
+  .room li { margin: .2rem 0; }
+  .room li::marker { content: "⚔ "; color: #8a5a2a; font-size: .8em; }
+  .room a { color: #7a3d12; }
+
+  .encounter { background: rgba(122,61,18,.08); border: 1px solid #c4a06a; border-radius: 5px; padding: .8rem 1rem; margin: .8rem 0; }
+  .encounter .foe { font-family: Cinzel, serif; font-weight: 800; color: #7a2a12; }
+  .encounter button, .room .act { background: #3b2a17; color: var(--parch); border-color: #3b2a17; margin-top: .5rem; }
+  .encounter button:hover:not(:disabled), .room .act:hover:not(:disabled) { background: #5a3f22; border-color: #5a3f22; }
+  .hidden { display: none; }
+  .revealed { animation: fadeIn .4s ease; }
+
+  .loot { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; margin-top: .6rem; }
+  .item { background: rgba(255,255,255,.35); border: 1px solid #c4a06a; border-radius: 5px; padding: .8rem; text-align: left; color: var(--ink); font-size: .95rem; }
+  .item:hover:not(:disabled) { background: rgba(255,255,255,.6); border-color: #7a3d12; }
+  .item .ico { font-size: 1.8rem; display: block; }
+  .item b { font-family: Cinzel, serif; display: block; margin: .2rem 0; }
+  .item.taken { background: rgba(127,163,107,.2); border-color: var(--moss); }
+  .item .desc { display: none; }
+  .item.taken .desc { display: block; }
+  .item .hint { font-size: .8rem; font-style: italic; color: #8a5a2a; }
+  .item.taken .hint { display: none; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .5rem; margin: .5rem 0 1rem; }
+  .stat { border: 1px solid #c4a06a; border-radius: 5px; text-align: center; padding: .4rem; background: rgba(255,255,255,.3); }
+  .stat .n { font-family: Cinzel, serif; font-size: 1.6rem; font-weight: 800; color: #3b2a17; line-height: 1.1; }
+  .stat .k { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; color: #8a5a2a; }
+  .stat .w { font-size: .78rem; font-style: italic; color: #5a4630; }
+
+  .chest { font-size: 4rem; background: none; border: none; display: block; margin: .5rem auto; filter: drop-shadow(0 4px 8px rgba(0,0,0,.3)); }
+  .chest:hover { transform: scale(1.06) rotate(-2deg); background: none; }
+  .contact { text-align: center; }
+  .contact p { margin: .3rem 0; }
+
+  .exits { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed #b48a4a; }
+  .exits .label { font-family: Cinzel, serif; font-size: .8rem; letter-spacing: .15em; color: #8a5a2a; width: 100%; }
+  .exits button { background: #3b2a17; border-color: #3b2a17; }
+  .exits button:hover { background: #5a3f22; }
+
+  /* log */
+  .log { margin-top: 1.25rem; max-height: 140px; overflow-y: auto; font-size: .92rem; }
+  .log p { margin: .15rem 0; color: var(--parch-dim); }
+  .log p:first-child { color: var(--parch); }
+  .log .roll { color: var(--gold); }
+
+  /* dice */
+  #die {
+    position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 60; width: 86px; height: 86px;
+    display: flex; align-items: center; justify-content: center; flex-direction: column;
+    background: #1b1611; border: 2px solid var(--gold); border-radius: 12px;
+    font-family: Cinzel, serif; color: var(--gold); box-shadow: 0 0 24px rgba(224,168,58,.35);
+    opacity: 0; transform: scale(.6) rotate(-30deg); transition: opacity .25s, transform .25s; pointer-events: none;
+  }
+  #die.show { opacity: 1; transform: none; }
+  #die .v { font-size: 2.1rem; font-weight: 800; line-height: 1; }
+  #die .t { font-size: .65rem; letter-spacing: .15em; color: var(--parch-dim); }
+  #die.crit { border-color: var(--moss); color: var(--moss); }
+
+  /* victory banner */
+  #banner {
+    position: fixed; left: 50%; top: 1.25rem; transform: translate(-50%, -150%); z-index: 70;
+    background: #1b1611; border: 2px solid var(--gold); border-radius: 6px; padding: .7rem 1.4rem;
+    font-family: Cinzel, serif; color: var(--gold); transition: transform .4s ease; text-align: center; max-width: 92vw;
+  }
+  #banner.show { transform: translate(-50%, 0); }
+
+  /* plain scroll mode */
+  #scroll { display: none; max-width: 760px; margin: 2rem auto; padding: 2rem 2.25rem; background: linear-gradient(#efe3c8, #e3d3b0); color: var(--ink); border-radius: 6px; }
+  #scroll.on { display: block; }
+  #scroll h1 { margin: 0; color: #3b2a17; }
+  #scroll h2 { font-size: 1.05rem; border-bottom: 1px solid #b48a4a; color: #7a3d12; margin-top: 1.4rem; }
+  #scroll a { color: #7a3d12; }
+  #scroll .back { float: right; background: #3b2a17; border-color: #3b2a17; }
+</style>
+</head>
+<body>
+<div class="torchlight" aria-hidden="true"></div>
+
+<!-- ================= TITLE ================= -->
+<section id="intro">
+  <div class="sigil" aria-hidden="true">🕯️</div>
+  <p class="title" style="color:var(--parch-dim);letter-spacing:.3em;font-size:.85rem;margin:0">A portfolio in eight chambers</p>
+  <h1>The Dungeon of Avery Lindqvist</h1>
+  <p class="sub">Beneath Cedar Falls lies a dungeon of reading camps, fraction goblins and one very busy coffee tavern. Explore every chamber to learn who keeps it.</p>
+  <button class="start" id="startBtn">🔥 Light your torch</button>
+  <button class="skip" id="skipBtn">Just show me the plain resume</button>
+</section>
+
+<!-- ================= GAME ================= -->
+<main id="game" aria-live="polite">
+  <header class="hud">
+    <div class="who">Avery Lindqvist<small>Apprentice Teacher · Level 3 · Lawful Good</small></div>
+    <div class="xp">
+      <div class="label"><span>Chambers explored</span><span id="xpText">0 / 8</span></div>
+      <div class="bar"><div class="fill" id="xpFill"></div></div>
+    </div>
+    <div class="tools">
+      <button id="scrollBtn" title="Read the resume as a plain page">📜 Plain scroll</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="side">
+      <div class="panel">
+        <h3>Dungeon Map</h3>
+        <div class="map" id="map"></div>
+        <p class="legend">Move with <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, or tap a glowing chamber.</p>
+      </div>
+      <div class="panel inventory">
+        <h3>Inventory</h3>
+        <div class="inv" id="inv"></div>
+      </div>
+      <div class="panel log" id="log" aria-label="Adventure log"></div>
+    </aside>
+
+    <article class="room" id="room"></article>
+  </div>
+</main>
+
+<!-- ================= PLAIN SCROLL ================= -->
+<section id="scroll">
+  <button class="back" id="backBtn">⚔ Back to the dungeon</button>
+  <h1>Avery Lindqvist</h1>
+  <p>Cedar Falls, UT · <a href="mailto:avery.lindqvist@example.com">avery.lindqvist@example.com</a> · <a href="https://linkedin.com/in/avery-lindqvist-example" target="_blank" rel="noopener">linkedin.com/in/avery-lindqvist-example</a></p>
+  <h2>Summary</h2>
+  <p>Elementary education student and future 4th-grade teacher with three years of classroom and camp experience. Builds simple, hands-on learning tools that get reluctant readers and math learners engaged. Known for organized small-group instruction, clear communication with parents, and turning classroom problems into practical fixes.</p>
+  <h2>Education</h2>
+  <p><b>Juniper Ridge College</b>, Cedar Falls, UT — Associate of Arts, Elementary Education emphasis (expected May 2027)<br>GPA 3.8; Dean's List (3 semesters). Coursework: Child Development, Teaching Reading, Math for Elementary Teachers, Intro to AI.</p>
+  <h2>Experience</h2>
+  <p><b>Reading Camp Lead</b>, Pinecrest Summer Reading Camp · Jun 2025 – Present</p>
+  <ul><li>Lead daily reading groups for 20 campers ages 7–10 across three reading levels</li><li>Created the “Book Passport” program, doubling average books finished per camper (4 to 8)</li><li>Train and schedule 4 junior counselors; send weekly progress notes to parents</li></ul>
+  <p><b>Classroom Aide</b>, Cedar Hollow Elementary · Aug 2024 – May 2025</p>
+  <ul><li>Ran small-group math intervention for 12 third graders; 9 of 12 met end-of-year benchmarks</li><li>Designed printable practice games the lead teacher adopted for the whole class</li><li>Supported classroom management, grading and parent-teacher conference prep</li></ul>
+  <p><b>Shift Lead</b>, Copper Kettle Coffee · May 2022 – Jul 2024</p>
+  <ul><li>Trained 4 new hires and built the weekend staff schedule</li><li>Handled opening and closing cash procedures and inventory orders</li></ul>
+  <h2>Projects</h2>
+  <ul><li><b>Book Passport</b> — reading tracker where kids earn stamps for each new genre; moving it from paper to a simple web app</li><li><b>Fraction Pizza Shop</b> — hands-on fractions game with paper pizza slices; used in two classrooms</li><li><b>Heritage Festival Kids' Booth</b> — Scandinavian paper-craft station that served 150+ kids in one day</li></ul>
+  <h2>Skills &amp; Certifications</h2>
+  <p><b>Teaching:</b> Lesson planning, small-group instruction, differentiated reading, classroom management<br><b>Tools:</b> Google Classroom, Canva, Seesaw, Microsoft Office, Claude<br><b>Languages:</b> English (native), Spanish (conversational)<br><b>Certifications:</b> CPR and First Aid, American Red Cross (2025); Youth Protection Training (2025)<br><b>Interests:</b> Hiking, sourdough baking, board games</p>
+</section>
+
+<div id="die" aria-hidden="true"><span class="t">d20</span><span class="v" id="dieVal">20</span></div>
+<div id="banner" role="status"></div>
+
+<script>
+const ROOMS = {
+  entrance: {
+    pos: [1, 2], icon: "🚪", name: "Entrance Hall", kicker: "Chamber I · Summary",
+    flavor: "Torches sputter to life. Carved above the archway: <i>“Here dwells one who turns classroom problems into practical fixes.”</i>",
+    body: `
+      <p>Welcome, traveler. You have entered the dungeon of <b>Avery Lindqvist</b>, an elementary education student and future <b>4th-grade teacher</b> with three years of classroom and camp experience.</p>
+      <p>Avery builds simple, hands-on learning tools that get <b>reluctant readers and math learners</b> engaged, and is known for organized small-group instruction and clear communication with parents.</p>
+      <h4>Your quest</h4>
+      <p>Seven more chambers lie ahead. Explore them all to fill your XP bar, gather the artifacts, and find the treasure vault to the north.</p>`
+  },
+  library: {
+    pos: [0, 2], icon: "📚", name: "The Scholar's Library", kicker: "Chamber II · Education",
+    flavor: "Dusty shelves stretch into darkness. A lectern holds an open tome, its pages still warm.",
+    body: `
+      <h4>Juniper Ridge College</h4>
+      <p class="meta">Associate of Arts, Elementary Education emphasis · Cedar Falls, UT · Expected May 2027</p>
+      <ul>
+        <li>GPA <b>3.8</b></li>
+        <li>Dean's List, <b>3 semesters</b></li>
+      </ul>
+      <h4>Spellbook (relevant coursework)</h4>
+      <ul>
+        <li>Child Development</li>
+        <li>Teaching Reading</li>
+        <li>Math for Elementary Teachers</li>
+        <li>Intro to AI</li>
+      </ul>`,
+    loot: { icon: "📖", name: "Tome of Pedagogy" }
+  },
+  camp: {
+    pos: [0, 1], icon: "🏕️", name: "The Reading Camp Grounds", kicker: "Chamber III · Experience",
+    flavor: "Lantern light flickers across twenty sleeping bags and a towering pile of unread books.",
+    encounter: {
+      foe: "The Dragon of Unread Books",
+      intro: "It hoards stories no child has opened. It is guarding three different reading levels at once.",
+      win: `
+        <h4>Reading Camp Lead · Pinecrest Summer Reading Camp</h4>
+        <p class="meta">Cedar Falls, UT · Jun 2025 – Present</p>
+        <ul>
+          <li>Lead daily reading groups for <b>20 campers</b> ages 7–10 across three reading levels</li>
+          <li>Created the <b>“Book Passport”</b> program, <b>doubling</b> average books finished per camper (4 → 8)</li>
+          <li>Train and schedule <b>4 junior counselors</b>; send weekly progress notes to parents</li>
+        </ul>`
+    }
+  },
+  classroom: {
+    pos: [1, 1], icon: "🧮", name: "The Chamber of Sums", kicker: "Chamber IV · Experience",
+    flavor: "Chalk runes cover every wall. Somewhere in the dark, a fraction refuses to simplify.",
+    encounter: {
+      foe: "The Arithmetic Golem",
+      intro: "Built from worksheets and stubbornness, it stands between twelve third graders and their benchmarks.",
+      win: `
+        <h4>Classroom Aide · Cedar Hollow Elementary</h4>
+        <p class="meta">Cedar Falls, UT · Aug 2024 – May 2025</p>
+        <ul>
+          <li>Ran small-group math intervention for <b>12 third graders</b>; <b>9 of 12</b> met end-of-year benchmarks</li>
+          <li>Designed printable practice games the lead teacher <b>adopted for the whole class</b></li>
+          <li>Supported classroom management, grading and parent-teacher conference prep</li>
+        </ul>`
+    }
+  },
+  tavern: {
+    pos: [0, 0], icon: "☕", name: "The Copper Kettle Tavern", kicker: "Chamber V · Experience",
+    flavor: "The smell of espresso drifts through the stone. A bell rings. The weekend rush approaches.",
+    encounter: {
+      foe: "The Morning Rush Hydra",
+      intro: "Cut off one latte order and two more grow back. It strikes hardest on weekends.",
+      win: `
+        <h4>Shift Lead · Copper Kettle Coffee</h4>
+        <p class="meta">Cedar Falls, UT · May 2022 – Jul 2024</p>
+        <ul>
+          <li>Trained <b>4 new hires</b> and built the weekend staff schedule</li>
+          <li>Handled opening and closing cash procedures and inventory orders</li>
+        </ul>`
+    }
+  },
+  workshop: {
+    pos: [2, 0], icon: "🛠️", name: "The Artificer's Workshop", kicker: "Chamber VI · Projects",
+    flavor: "Workbenches overflow with paper, glue and stamps. Three artifacts glow faintly. Take them.",
+    artifacts: [
+      { id: "passport", icon: "🛂", name: "Book Passport", desc: "A reading tracker where kids earn stamps for each new genre. Now being moved from paper to a simple web app." },
+      { id: "pizza", icon: "🍕", name: "Fraction Pizza Shop", desc: "A hands-on game for practicing fractions with paper pizza slices. Used in two classrooms." },
+      { id: "booth", icon: "✂️", name: "Heritage Festival Booth", desc: "A Scandinavian paper-craft station for kids that served 150+ children in one day." }
+    ]
+  },
+  armory: {
+    pos: [2, 2], icon: "🛡️", name: "The Armory", kicker: "Chamber VII · Skills & Certifications",
+    flavor: "Racks of well-worn gear line the walls. A character sheet is pinned beside the door.",
+    body: `
+      <div class="stats">
+        <div class="stat"><div class="k">Class</div><div class="n" style="font-size:1.05rem;padding:.35rem 0">Teacher</div><div class="w">future 4th grade</div></div>
+        <div class="stat"><div class="k">Level</div><div class="n">3</div><div class="w">years in classrooms &amp; camps</div></div>
+        <div class="stat"><div class="k">GPA</div><div class="n">3.8</div><div class="w">Dean's List ×3</div></div>
+        <div class="stat"><div class="k">Tongues</div><div class="n">2</div><div class="w">English, Spanish</div></div>
+      </div>
+      <h4>Weapons (teaching)</h4>
+      <p>Lesson planning · Small-group instruction · Differentiated reading · Classroom management</p>
+      <h4>Tools of the trade</h4>
+      <p>Google Classroom · Canva · Seesaw · Microsoft Office · Claude</p>
+      <h4>Languages</h4>
+      <p>English (native) · Spanish (conversational)</p>
+      <h4>Wards &amp; blessings (certifications)</h4>
+      <ul>
+        <li>CPR and First Aid, American Red Cross (2025)</li>
+        <li>Youth Protection Training (2025)</li>
+      </ul>
+      <h4>Side quests</h4>
+      <p>Hiking · Sourdough baking · Board games</p>`,
+    loot: { icon: "🛡️", name: "Shield of First Aid" }
+  },
+  vault: {
+    pos: [1, 0], icon: "💰", name: "The Treasure Vault", kicker: "Chamber VIII · Contact",
+    flavor: "At the heart of the dungeon sits a single iron-bound chest.",
+    chest: true
+  }
+};
+const BLOCKED = [[2, 1]];
+const ORDER = ["entrance", "library", "camp", "classroom", "tavern", "workshop", "armory", "vault"];
+
+const state = { here: "entrance", visited: new Set(), defeated: new Set(), items: [], chestOpen: false, won: false };
+const $ = s => document.querySelector(s);
+const roomAt = (x, y) => Object.keys(ROOMS).find(k => ROOMS[k].pos[0] === x && ROOMS[k].pos[1] === y);
+const isBlocked = (x, y) => BLOCKED.some(b => b[0] === x && b[1] === y);
+const d20 = () => Math.floor(Math.random() * 20) + 1;
+
+function neighbors(key) {
+  const [x, y] = ROOMS[key].pos;
+  const dirs = { North: [0, -1], South: [0, 1], West: [-1, 0], East: [1, 0] };
+  const out = {};
+  for (const [d, [dx, dy]] of Object.entries(dirs)) {
+    const r = roomAt(x + dx, y + dy);
+    if (r) out[d] = r;
+  }
+  return out;
+}
+
+function log(html, cls = "") {
+  const p = document.createElement("p");
+  if (cls) p.className = cls;
+  p.innerHTML = html;
+  $("#log").prepend(p);
+}
+
+let dieTimer;
+function showDie(n) {
+  const die = $("#die");
+  clearTimeout(dieTimer);
+  die.classList.toggle("crit", n === 20);
+  let ticks = 0;
+  die.classList.add("show");
+  const spin = setInterval(() => {
+    $("#dieVal").textContent = d20();
+    if (++ticks > 8) { clearInterval(spin); $("#dieVal").textContent = n; }
+  }, 55);
+  dieTimer = setTimeout(() => die.classList.remove("show"), 1600);
+}
+
+function banner(text) {
+  const b = $("#banner");
+  b.innerHTML = text;
+  b.classList.add("show");
+  setTimeout(() => b.classList.remove("show"), 3200);
+}
+
+function addItem(icon, name) {
+  if (state.items.some(i => i.name === name)) return;
+  state.items.push({ icon, name });
+  log(`🎒 You obtained <b>${name}</b>.`);
+  renderInv();
+}
+
+function renderInv() {
+  const inv = $("#inv");
+  inv.innerHTML = "";
+  for (let i = 0; i < 8; i++) {
+    const it = state.items[i];
+    const s = document.createElement("div");
+    s.className = "slot" + (it ? " filled" : "");
+    if (it) { s.textContent = it.icon; s.title = it.name; s.setAttribute("aria-label", it.name); }
+    inv.appendChild(s);
+  }
+}
+
+function renderMap() {
+  const map = $("#map");
+  map.innerHTML = "";
+  const adj = Object.values(neighbors(state.here));
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
+    const c = document.createElement("div");
+    c.className = "cell";
+    if (isBlocked(x, y)) {
+      c.classList.add("rubble");
+      c.innerHTML = `<span class="ico">🪨</span>Collapsed`;
+      c.title = "A collapsed passage";
+    } else {
+      const k = roomAt(x, y), r = ROOMS[k];
+      const seen = state.visited.has(k);
+      if (seen) c.classList.add("seen"); else c.classList.add("fogged");
+      if (k === state.here) c.classList.add("here");
+      c.innerHTML = `<span class="ico">${seen || adj.includes(k) ? r.icon : "❔"}</span>${seen ? r.name.replace(/^The /, "") : (adj.includes(k) ? "Unexplored" : "")}`;
+      if (adj.includes(k)) {
+        c.classList.add("adj");
+        c.tabIndex = 0;
+        c.setAttribute("role", "button");
+        c.setAttribute("aria-label", `Go to ${seen ? r.name : "unexplored chamber"}`);
+        c.onclick = () => go(k);
+        c.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(k); } };
+      }
+    }
+    map.appendChild(c);
+  }
+}
+
+function renderXP() {
+  const n = state.visited.size;
+  $("#xpText").textContent = `${n} / ${ORDER.length}`;
+  $("#xpFill").style.width = (n / ORDER.length * 100) + "%";
+}
+
+function renderRoom(fresh) {
+  const k = state.here, r = ROOMS[k];
+  const el = $("#room");
+  let html = `<div class="kicker">${r.kicker}</div><h2>${r.icon} ${r.name}</h2><p class="flavor">${r.flavor}</p>`;
+  if (r.body) html += r.body;
+
+  if (r.encounter) {
+    const e = r.encounter, won = state.defeated.has(k);
+    html += `<div class="encounter">
+      <div class="foe">⚠ Encounter: ${e.foe}</div>
+      <p style="margin:.3rem 0">${e.intro}</p>
+      ${won ? "" : `<button id="fight">🎲 Roll to face it</button>`}
+      <div id="spoils" class="${won ? "" : "hidden"}">${e.win}</div>
+    </div>`;
+  }
+
+  if (r.artifacts) {
+    html += `<div class="loot">` + r.artifacts.map(a => {
+      const taken = state.items.some(i => i.name === a.name);
+      return `<button class="item ${taken ? "taken" : ""}" data-art="${a.id}" ${taken ? 'aria-pressed="true"' : ""}>
+        <span class="ico">${a.icon}</span><b>${a.name}</b>
+        <span class="hint">Click to take this artifact</span>
+        <span class="desc">${a.desc}</span></button>`;
+    }).join("") + `</div>`;
+  }
+
+  if (r.chest) {
+    html += state.chestOpen ? vaultContents() :
+      `<div class="contact"><button class="chest" id="chest" aria-label="Open the treasure chest">🧰</button><p><i>The lock looks old. Perhaps a good roll will open it…</i></p></div>`;
+  }
+
+  if (r.loot && fresh) addItem(r.loot.icon, r.loot.name);
+
+  const ex = neighbors(k);
+  const arrows = { North: "↑", South: "↓", West: "←", East: "→" };
+  html += `<nav class="exits" aria-label="Exits"><span class="label">Exits</span>` +
+    Object.entries(ex).map(([d, rk]) => `<button data-go="${rk}">${arrows[d]} ${d}: ${state.visited.has(rk) ? ROOMS[rk].name : "Unexplored chamber"}</button>`).join("") +
+    `</nav>`;
+
+  el.innerHTML = html;
+  el.classList.remove("enter"); void el.offsetWidth; el.classList.add("enter");
+
+  el.querySelectorAll("[data-go]").forEach(b => b.onclick = () => go(b.dataset.go));
+  const f = $("#fight");
+  if (f) f.onclick = () => fight(k);
+  el.querySelectorAll("[data-art]").forEach(b => b.onclick = () => {
+    const a = r.artifacts.find(x => x.id === b.dataset.art);
+    if (state.items.some(i => i.name === a.name)) return;
+    addItem(a.icon, a.name);
+    b.classList.add("taken"); b.setAttribute("aria-pressed", "true");
+    checkWin();
+  });
+  const c = $("#chest");
+  if (c) c.onclick = openChest;
+}
+
+function vaultContents() {
+  return `<div class="contact revealed">
+    <p style="font-size:3rem;margin:0">✨💎✨</p>
+    <h4 style="text-align:center">The greatest treasure: a conversation</h4>
+    <p>Avery is looking for elementary teaching opportunities. Send a raven:</p>
+    <p>✉️ <a href="mailto:avery.lindqvist@example.com">avery.lindqvist@example.com</a></p>
+    <p>🔗 <a href="https://linkedin.com/in/avery-lindqvist-example" target="_blank" rel="noopener">linkedin.com/in/avery-lindqvist-example</a></p>
+    <p>📯 (555) 014-2297</p>
+    <p>🏔️ Cedar Falls, UT</p>
+  </div>`;
+}
+
+function fight(k) {
+  const roll = d20();
+  showDie(roll);
+  const e = ROOMS[k].encounter;
+  setTimeout(() => {
+    const crit = roll === 20 ? " <b>Critical hit!</b>" : "";
+    const flavor = roll < 8 ? "A shaky start, but Avery's preparation carries the day." : "Avery strikes with a well-planned lesson.";
+    log(`<span class="roll">🎲 Rolled ${roll}.</span> ${flavor}${crit} <b>${e.foe}</b> is defeated!`);
+    state.defeated.add(k);
+    const sp = $("#spoils");
+    if (sp) { sp.classList.remove("hidden"); sp.classList.add("revealed"); }
+    const btn = $("#fight"); if (btn) btn.remove();
+    checkWin();
+  }, 600);
+}
+
+function openChest() {
+  const roll = d20();
+  showDie(roll);
+  setTimeout(() => {
+    log(`<span class="roll">🎲 Rolled ${roll} to pick the lock.</span> ${roll >= 10 ? "Click. The chest swings open." : "The lock gives way anyway. It was never really locked."}`);
+    state.chestOpen = true;
+    addItem("💎", "Contact Gem");
+    renderRoom(false);
+    checkWin();
+  }, 600);
+}
+
+function go(k) {
+  if (!ROOMS[k]) return;
+  const fresh = !state.visited.has(k);
+  state.here = k;
+  state.visited.add(k);
+  if (fresh) log(`You enter <b>${ROOMS[k].name}</b>.`);
+  renderMap(); renderXP(); renderRoom(fresh);
+  checkWin();
+  if (window.innerWidth <= 820) $("#room").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function checkWin() {
+  if (state.won) return;
+  const allRooms = state.visited.size === ORDER.length;
+  const allFoes = ["camp", "classroom", "tavern"].every(k => state.defeated.has(k));
+  if (allRooms && allFoes && state.chestOpen) {
+    state.won = true;
+    banner("🏆 Dungeon cleared! You now know Avery Lindqvist.");
+    log(`<span class="roll">🏆 Quest complete.</span> Every chamber explored, every foe bested.`);
+  }
+}
+
+function startGame() {
+  $("#intro").style.display = "none";
+  $("#scroll").classList.remove("on");
+  $("#game").classList.add("on");
+  if (!state.visited.size) { renderInv(); log("You light your torch and step inside…"); go("entrance"); }
+  window.scrollTo(0, 0);
+}
+function showScroll() {
+  $("#intro").style.display = "none";
+  $("#game").classList.remove("on");
+  $("#scroll").classList.add("on");
+  window.scrollTo(0, 0);
+}
+
+$("#startBtn").onclick = startGame;
+$("#skipBtn").onclick = showScroll;
+$("#scrollBtn").onclick = showScroll;
+$("#backBtn").onclick = startGame;
+
+document.addEventListener("keydown", e => {
+  if (!$("#game").classList.contains("on")) return;
+  if (e.target.closest && e.target.closest("input, textarea")) return;
+  const map = { ArrowUp: "North", w: "North", W: "North", ArrowDown: "South", s: "South", S: "South",
+                ArrowLeft: "West", a: "West", A: "West", ArrowRight: "East", d: "East", D: "East" };
+  const dir = map[e.key];
+  if (!dir) return;
+  const n = neighbors(state.here)[dir];
+  e.preventDefault();
+  if (n) go(n); else log(`A cold stone wall blocks the way ${dir.toLowerCase()}.`);
+});
+</script>
+</body>
+</html>
